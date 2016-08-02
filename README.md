@@ -1,3 +1,10 @@
+Hacked up Socket.io library
+Original from: https://github.com/washo4evr/Socket.io-v1.x-Library
+
+Not attempting to make these changes integratable back to the master...
+
+===
+
 # Socket.io-v1.x-Library
 Socket.io Library for Arduino
 

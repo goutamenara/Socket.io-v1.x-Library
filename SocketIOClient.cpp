@@ -23,38 +23,48 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#define ESP8266
+/*
+ * Modified by RoboJay
+ */
 
 #include <SocketIOClient.h>
 
+//String tmpdata = "";	//External variables
+//String RID = "";
+//String Rname = "";
+//String Rcontent = "";
 
-String tmpdata = "";	//External variables
-String RID = "";
-String Rname = "";
-String Rcontent = "";
+SocketIOClient::SocketIOClient() {
+	for (int i = 0; i < MAX_ON_HANDLERS; i++) {
+		onId[i] = "";
+	}
+}
 
 
-
-bool SocketIOClient::connect(char thehostname[], int theport) {
-	if (!client.connect(thehostname, theport)) return false;
-	hostname = thehostname;
+bool SocketIOClient::connect(String thehostname, int theport) {
+	thehostname.toCharArray(hostname, MAX_HOSTNAME_LEN);
 	port = theport;
+
+	if (!client.connect(hostname, theport)) return false;
+	
 	sendHandshake(hostname);
 	return readHandshake();
 }
 
-bool SocketIOClient::connectHTTP(char thehostname[], int theport) {
-	if (!client.connect(thehostname, theport)) return false;
-	hostname = thehostname;
+bool SocketIOClient::connectHTTP(String thehostname, int theport) {
+	thehostname.toCharArray(hostname, MAX_HOSTNAME_LEN);
 	port = theport;
+	if (!client.connect(hostname, theport)) return false;
 	return true;
 }
 
-bool SocketIOClient::reconnect(char thehostname[], int theport)
+bool SocketIOClient::reconnect(String thehostname, int theport)
 {
-	if (!client.connect(thehostname, theport)) return false;
-	hostname = thehostname;
+	thehostname.toCharArray(hostname, MAX_HOSTNAME_LEN);
 	port = theport;
+
+	if (!client.connect(hostname, theport)) return false;
+
 	sendHandshake(hostname);
 	return readHandshake();
 }
@@ -67,22 +77,9 @@ void SocketIOClient::disconnect() {
 	client.stop();
 }
 
-// find the nth colon starting from dataptr
-void SocketIOClient::findColon(char which) {
-	while (*dataptr) {
-		if (*dataptr == ':') {
-			if (--which <= 0) return;
-		}
-		++dataptr;
-	}
-}
-
-// terminate command at dataptr at closing double quote
-void SocketIOClient::terminateCommand(void) {
-	dataptr[strlen(dataptr) - 3] = 0;
-}
-
 void SocketIOClient::parser(int index) {
+	String id = "";
+	String data = "";
 	String rcvdmsg = "";
 	int sizemsg = databuffer[index + 1];   // 0-125 byte, index ok        Fix provide by Galilei11. Thanks
 	if (databuffer[index + 1]>125)
@@ -90,37 +87,40 @@ void SocketIOClient::parser(int index) {
 		sizemsg = databuffer[index + 2];    // 126-255 byte
 		index += 1;       // index correction to start
 	}
-	Serial.print("Message size = ");	//Can be used for debugging
-	Serial.println(sizemsg);			//Can be used for debugging
+	if (SocketIoClientDebug) Serial.print("[parser] Message size = ");	//Can be used for debugging
+	if (SocketIoClientDebug) Serial.println(sizemsg);			//Can be used for debugging
 	for (int i = index + 2; i < index + sizemsg + 2; i++)
 		rcvdmsg += (char)databuffer[i];
-	Serial.print("Received message = ");	//Can be used for debugging
-	Serial.println(rcvdmsg);				//Can be used for debugging
+	if (SocketIoClientDebug) Serial.print("[parser] Received message = ");	//Can be used for debugging
+	if (SocketIoClientDebug) Serial.println(rcvdmsg);				//Can be used for debugging
 	switch (rcvdmsg[0])
 	{
 	case '2':
-		Serial.println("Ping received - Sending Pong");
+		if (SocketIoClientDebug) Serial.println("[parser] Ping received - Sending Pong");
 		heartbeat(1);
 		break;
 
 	case '3':
-		Serial.println("Pong received - All good");
+		if (SocketIoClientDebug) Serial.println("[parser] Pong received - All good");
 		break;
 
 	case '4':
 		switch (rcvdmsg[1])
 		{
 		case '0':
-			Serial.println("Upgrade to WebSocket confirmed");
+			if (SocketIoClientDebug) Serial.println("[parser] Upgrade to WebSocket confirmed");
 			break;
 		case '2':
-			RID = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
-			Rname = rcvdmsg.substring(rcvdmsg.indexOf("\",") + 4, rcvdmsg.indexOf("\":"));
-			Rcontent = rcvdmsg.substring(rcvdmsg.indexOf("\":") + 3, rcvdmsg.indexOf("\"}"));
-			//Serial.println("RID = " + RID);
-			//Serial.println("Rname = " + Rname);
-			//Serial.println("Rcontent = " + Rcontent);
-			Serial.println(rcvdmsg);
+			id = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
+            if (SocketIoClientDebug) Serial.println("[parser] id = " + id);
+            data = rcvdmsg.substring(rcvdmsg.indexOf("\",") + 3, rcvdmsg.length () - 2);
+			if (SocketIoClientDebug) Serial.println("[parser] data = " + data);
+			for (uint8_t i = 0; i < onIndex; i++) {
+				if (id == onId[i]) {
+					if (SocketIoClientDebug) Serial.println("[parser] Found handler = " + String(i));
+					(*onFunction[i])(data);
+				}
+			}
 			break;
 		}
 	}
@@ -132,37 +132,44 @@ bool SocketIOClient::monitor() {
 	String tmp = "";
 	*databuffer = 0;
 
-	if (!client.connected()) {
-		if (!client.connect(hostname, port)) return 0;
+	if (!connected()) {
+		if (SocketIoClientDebug) Serial.println("[monitor] Client not connected.");
+		if (!connect(hostname, port)) {
+			if (SocketIoClientDebug) Serial.println("[monitor] Can't connect. Aborting.");
+			return false;
+		}
+		else {
+			if (SocketIoClientDebug) Serial.println("[monitor] Connected.");
+		}		
 	}
 
 	if (!client.available())
 	{
 		return 0;
 	}
-	char which;
 
 	while (client.available()) {
 		readLine();
 		tmp = databuffer;
-		Serial.println(databuffer);
+		// if (SocketIoClientDebug) Serial.println(databuffer);
 		dataptr = databuffer;
 		index = tmp.indexOf((char)129);	//129 DEC = 0x81 HEX = sent for proper communication
 		index2 = tmp.indexOf((char)129, index + 1);
-		/*Serial.print("Index = ");			//Can be used for debugging
-		Serial.print(index);
-		Serial.print(" & Index2 = ");
-		Serial.println(index2);*/
+		/*if (SocketIoClientDebug) Serial.print("Index = ");			//Can be used for debugging
+		if (SocketIoClientDebug) Serial.print(index);
+		if (SocketIoClientDebug) Serial.print(" & Index2 = ");
+		if (SocketIoClientDebug) Serial.println(index2);*/
 		if (index != -1)
 		{
 			parser(index);
+            
 		}
 		if (index2 != -1)
 		{
 			parser(index2);
 		}
 	}
-	return 1;
+    return true;
 }
 
 void SocketIOClient::sendHandshake(char hostname[]) {
@@ -208,9 +215,8 @@ bool SocketIOClient::readHandshake() {
 	{
 		sid[i] = databuffer[i + sidindex + 6];
 	}
-	Serial.println(" ");
-	Serial.print(F("Connected. SID="));
-	Serial.println(sid);	// sid:transport:timeout 
+	if (SocketIoClientDebug) Serial.print(F("[readHandshake] Connected. SID="));
+	if (SocketIoClientDebug) Serial.println(sid);	// sid:transport:timeout 
 
 	while (client.available()) readLine();
 	client.stop();
@@ -218,10 +224,10 @@ bool SocketIOClient::readHandshake() {
 
 	// reconnect on websocket connection
 	if (!client.connect(hostname, port)) {
-		Serial.print(F("Websocket failed."));
+		if (SocketIoClientDebug) Serial.print(F("[readHandshake] Websocket failed."));
 		return false;
 	}
-	Serial.println(F("Connecting via Websocket"));
+	if (SocketIoClientDebug) Serial.println(F("[readHandshake] Connecting via Websocket"));
 
 	client.print(F("GET /socket.io/1/websocket/?transport=websocket&b64=true&sid="));
 	client.print(sid);
@@ -348,9 +354,9 @@ void SocketIOClient::readLine() {
 	while (client.available() && (dataptr < &databuffer[DATA_BUFFER_LEN - 2]))
 	{
 		char c = client.read();
-		Serial.print(c);			//Can be used for debugging
-		if (c == 0) Serial.print("");
-		else if (c == 255) Serial.println("");
+		// if (SocketIoClientDebug) Serial.print(c);			//Can be used for debugging
+		if (c == 0) {if (SocketIoClientDebug) Serial.print("");}
+		else if (c == 255) {if (SocketIoClientDebug) Serial.println("");}
 		else if (c == '\r') { ; }
 		else if (c == '\n') break;
 		else *dataptr++ = c;
@@ -358,70 +364,14 @@ void SocketIOClient::readLine() {
 	*dataptr = 0;
 }
 
-void SocketIOClient::send(String RID, String Rname, String Rcontent) {
 
-	String message = "42[\"" + RID + "\",{\"" + Rname + "\":\"" + Rcontent + "\"}]";
+void SocketIOClient::emit(String id, String data) {
+	String message = "42[\"" + id + "\"," + data + "]";
+	if (SocketIoClientDebug) Serial.println("[emit] " + message);
 	int header[10];
 	header[0] = 0x81;
 	int msglength = message.length();
-	randomSeed(analogRead(0));
-	String mask = "";
-	String masked = message;
-	for (int i = 0; i < 4; i++)
-	{
-		char a = random(48, 57);
-		mask += a;
-	}
-	for (int i = 0; i < msglength; i++)
-		masked[i] = message[i] ^ mask[i % 4];
-
-	client.print((char)header[0]);	//has to be sent for proper communication
-									//Depending on the size of the message
-	if (msglength <= 125)
-	{
-		header[1] = msglength + 128;
-		client.print((char)header[1]);	//size of the message + 128 because message has to be masked
-	}
-	else if (msglength >= 126 && msglength <= 65535)
-	{
-		header[1] = 126 + 128;
-		client.print((char)header[1]);
-		header[2] = (msglength >> 8) & 255;
-		client.print((char)header[2]);
-		header[3] = (msglength)& 255;
-		client.print((char)header[3]);
-	}
-	else
-	{
-		header[1] = 127 + 128;
-		client.print((char)header[1]);
-		header[2] = (msglength >> 56) & 255;
-		client.print((char)header[2]);
-		header[3] = (msglength >> 48) & 255;
-		client.print((char)header[4]);
-		header[4] = (msglength >> 40) & 255;
-		client.print((char)header[4]);
-		header[5] = (msglength >> 32) & 255;
-		client.print((char)header[5]);
-		header[6] = (msglength >> 24) & 255;
-		client.print((char)header[6]);
-		header[7] = (msglength >> 16) & 255;
-		client.print((char)header[7]);
-		header[8] = (msglength >> 8) & 255;
-		client.print((char)header[8]);
-		header[9] = (msglength)& 255;
-		client.print((char)header[9]);
-	}
-
-	client.print(mask);
-	client.print(masked);
-}
-
-void SocketIOClient::sendJSON(String RID, String JSON) {
-	String message = "42[\"" + RID + "\"," + JSON + "]";
-	int header[10];
-	header[0] = 0x81;
-	int msglength = message.length();
+	if (SocketIoClientDebug) Serial.println("[emit] " + String(msglength));
 	randomSeed(analogRead(0));
 	String mask = "";
 	String masked = message;
@@ -506,3 +456,13 @@ void SocketIOClient::heartbeat(int select) {
 	client.print(mask);
 	client.print(masked);
 }
+
+void SocketIOClient::on(String id, onHandler f) {
+	if (onIndex == MAX_ON_HANDLERS)
+		// oops... to many...
+		return;
+	onFunction[onIndex] = f;
+	onId[onIndex] = id;
+	onIndex++;
+}
+

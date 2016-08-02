@@ -24,7 +24,19 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
+
+/*
+ * Modifications by RoboJay
+ */
+
+#ifndef SocketIoClient_H
+#define SocketIoClient_H
+
 #include "Arduino.h"
+
+#ifndef SocketIoClientDebug
+#define SocketIoClientDebug true
+#endif
 
 #ifdef W5100
 #include <Ethernet.h>
@@ -37,10 +49,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #ifdef ESP8266
-#include <ESP8266WiFi.h>				//For ESP8266
+#include <ESP8266WiFi.h>			//For ESP8266
 #endif
 
-#ifndef W5100 || ENC28J60 || ESP8266	//If no interface is defined
+#if !defined(W5100) && !defined(ENC28J60) && !defined(ESP8266)	//If no interface is defined
 #error "Please specify an interface such as W5100, ENC28J60, or ESP8266"
 #error "above your includes like so : #define ESP8266 "
 #endif
@@ -49,37 +61,52 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define DATA_BUFFER_LEN 120
 #define SID_LEN 24
 
-class SocketIOClient {
-public:
-	bool connect(char hostname[], int port = 80);
-	bool connectHTTP(char hostname[], int port = 80);
-	bool connected();
-	void disconnect();
-	bool reconnect(char hostname[], int port = 80);
-	bool monitor();
-	void send(String RID, String Rname, String Rcontent);
-	void sendJSON(String RID, String JSON);
-	void heartbeat(int select);
-	void getREST(String path);
-	void postREST(String path, String type, String data);
-	void putREST(String path, String type, String data);
-	void deleteREST(String path);
-private:
-	void parser(int index);
-	void sendHandshake(char hostname[]);
-	//EthernetClient client;				//For ENC28J60 or W5100
-	WiFiClient client;						//For ESP8266
-	bool readHandshake();
-	void readLine();
-	char *dataptr;
-	char databuffer[DATA_BUFFER_LEN];
-	char sid[SID_LEN];
-	char key[28];
-	char *hostname;
-	int port;
+// prototype for 'on' handlers
+// only dealing with string data at this point
+typedef void (*onHandler)(String data);
 
-	void findColon(char which);
-	void terminateCommand(void);
-	bool waitForInput(void);
-	void eatHeader(void);
+// Maxmimum number of 'on' handlers
+#define MAX_ON_HANDLERS 8
+
+#define MAX_HOSTNAME_LEN 128
+
+class SocketIOClient {
+    public:
+        SocketIOClient();
+        bool connect(String thehostname, int port = 80);
+        bool connectHTTP(String thehostname, int port = 80);
+        bool connected();
+        void disconnect();
+        bool reconnect(String thehostname, int port = 80);
+        bool monitor();
+        void emit(String id, String data);
+        void on(String id, onHandler f);
+        void heartbeat(int select);
+        void getREST(String path);
+        void postREST(String path, String type, String data);
+        void putREST(String path, String type, String data);
+        void deleteREST(String path);
+    private:
+        void parser(int index);
+        void sendHandshake(char hostname[]);
+       
+        //EthernetClient client;				//For ENC28J60 or W5100
+        WiFiClient client;						//For ESP8266
+        bool readHandshake();
+        void readLine();
+        char *dataptr;
+        char databuffer[DATA_BUFFER_LEN];
+        char sid[SID_LEN];
+        char key[28];
+        char hostname[128];
+        int port;
+        
+        bool waitForInput(void);
+        void eatHeader(void);    
+
+        onHandler onFunction[MAX_ON_HANDLERS];
+        String onId[MAX_ON_HANDLERS];
+        uint8_t onIndex = 0;    
 };
+
+#endif // SocketIoClient_H
