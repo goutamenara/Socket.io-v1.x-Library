@@ -119,9 +119,9 @@ bool SocketIOClient::monitor() {
 		if (ioDebug) Serial.println("[monitor] Client not connected.");
 		if (connect(hostname, port)) {
 			if (ioDebug) Serial.println("[monitor] Connected.");
+			return true;
 		} else {
 			if (ioDebug) Serial.println("[monitor] Can't connect. Aborting.");
-			return false;
 		}
 	}
 
@@ -135,7 +135,7 @@ bool SocketIOClient::monitor() {
 		if (index != -1)  { eventHandler(index); }
 		if (index2 != -1) { eventHandler(index2);}
 	}
-  return true;
+  return false;
 }
 
 void SocketIOClient::sendHandshake(char hostname[]) {
