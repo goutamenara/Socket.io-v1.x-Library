@@ -34,8 +34,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 #include "Arduino.h"
 
-#ifndef SocketIoClientDebug
-#define SocketIoClientDebug true
+#ifndef ioDebug
+#define ioDebug true
 #endif
 
 #ifdef W5100
@@ -63,7 +63,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 // prototype for 'on' handlers
 // only dealing with string data at this point
-typedef void (*onHandler)(String data);
+typedef void (*functionPointer)(String data);
 
 // Maxmimum number of 'on' handlers
 #define MAX_ON_HANDLERS 8
@@ -80,18 +80,18 @@ class SocketIOClient {
         bool reconnect(String thehostname, int port = 80);
         bool monitor();
         void emit(String id, String data);
-        void on(String id, onHandler f);
+        void on(String id, functionPointer f);
         void heartbeat(int select);
         void getREST(String path);
         void postREST(String path, String type, String data);
         void putREST(String path, String type, String data);
         void deleteREST(String path);
     private:
-        void parser(int index);
+        void eventHandler(int index);
         void sendHandshake(char hostname[]);
-       
-        //EthernetClient client;				//For ENC28J60 or W5100
-        WiFiClient client;						//For ESP8266
+
+        //EthernetClient internets;				//For ENC28J60 or W5100
+        WiFiClient internets;			  			//For ESP8266
         bool readHandshake();
         void readLine();
         char *dataptr;
@@ -100,13 +100,13 @@ class SocketIOClient {
         char key[28];
         char hostname[128];
         int port;
-        
-        bool waitForInput(void);
-        void eatHeader(void);    
 
-        onHandler onFunction[MAX_ON_HANDLERS];
+        bool waitForInput(void);
+        void eatHeader(void);
+
+        functionPointer onFunction[MAX_ON_HANDLERS];
         String onId[MAX_ON_HANDLERS];
-        uint8_t onIndex = 0;    
+        uint8_t onIndex = 0;
 };
 
 #endif // SocketIoClient_H
