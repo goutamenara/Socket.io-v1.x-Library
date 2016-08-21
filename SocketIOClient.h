@@ -70,6 +70,8 @@ typedef void (*functionPointer)(String data);
 
 #define MAX_HOSTNAME_LEN 128
 
+#define PING_INTERVAL 5000
+
 class SocketIOClient {
     public:
         SocketIOClient();

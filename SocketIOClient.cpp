@@ -75,32 +75,32 @@ void SocketIOClient::eventHandler(int index) {
 		sizemsg = databuffer[index + 2];   // 126-255 byte
 		index += 1;                        // index correction to start
 	}
-	if (ioDebug) Serial.print("[parser] Message size = "); //Can be used for debugging
+	if (ioDebug) Serial.print("[eventHandler] Message size = "); //Can be used for debugging
 	if (ioDebug) Serial.println(sizemsg);			             //Can be used for debugging
 	for (int i = index + 2; i < index + sizemsg + 2; i++) { rcvdmsg += (char)databuffer[i]; }
-	if (ioDebug) Serial.print("[parser] Received message = "); //Can be used for debugging
+	if (ioDebug) Serial.print("[eventHandler] Received message = "); //Can be used for debugging
 	if (ioDebug) Serial.println(rcvdmsg);				               //Can be used for debugging
 	switch (rcvdmsg[0]) {
 	  case '2':
-		  if (ioDebug) Serial.println("[parser] Ping received - Sending Pong");
+		  if (ioDebug) Serial.println("[eventHandler] Ping received - Sending Pong");
 		  heartbeat(1);
 		  break;
 	  case '3':
-		  if (ioDebug) Serial.println("[parser] Pong received - All good");
+		  if (ioDebug) Serial.println("[eventHandler] Pong received - All good");
 		  break;
 	  case '4':
 		  switch (rcvdmsg[1]) {
 		    case '0':
-			    if (ioDebug) Serial.println("[parser] Upgrade to WebSocket confirmed");
+			    if (ioDebug) Serial.println("[eventHandler] Upgrade to WebSocket confirmed");
 			    break;
 		    case '2':
 			    id = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
-          if (ioDebug){ Serial.println("[parser] id = " + id); }
+          if (ioDebug){ Serial.println("[eventHandler] id = " + id); }
           data = rcvdmsg.substring(rcvdmsg.indexOf("\",") + 3, rcvdmsg.length () - 2);
-			    if (ioDebug){ Serial.println("[parser] data = " + data); }
+			    if (ioDebug){ Serial.println("[eventHandler] data = " + data); }
 			    for (uint8_t i = 0; i < onIndex; i++) {
 				    if (id == onId[i]) {
-					    if (ioDebug) Serial.println("[parser] Found handler = " + String(i));
+					    if (ioDebug) Serial.println("[eventHandler] Found handler = " + String(i));
 					    (*onFunction[i])(data);
 				    }
 			    }
@@ -114,6 +114,7 @@ bool SocketIOClient::monitor() {
 	int index2 = -1;
 	String tmp = "";
 	*databuffer = 0;
+	static unsigned long pingTimer = 0;
 
 	if (!internets.connected()) {
 		if (ioDebug) Serial.println("[monitor] Client not connected.");
@@ -123,6 +124,13 @@ bool SocketIOClient::monitor() {
 		} else {
 			if (ioDebug) Serial.println("[monitor] Can't connect. Aborting.");
 		}
+	}
+
+	// the PING_INTERVAL from the negotiation phase should be used
+	// this is a temporary hack
+	if (internets.connected() && millis() >= pingTimer) {
+		heartbeat(0);
+		pingTimer = millis() + PING_INTERVAL;
 	}
 
 	if (!internets.available()){ return false;}
