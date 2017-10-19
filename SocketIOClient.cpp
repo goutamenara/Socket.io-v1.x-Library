@@ -24,7 +24,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 */
 
 /*
- * Modified by RoboJay
+ * Modified by Goutam Enara
  */
 
 #include <SocketIOClient.h>
@@ -311,9 +311,9 @@ void SocketIOClient::readLine() {
 
 
 void SocketIOClient::emit(String id, String data) {
-	String message = "42[\"" + id + "\"," + data + "]";
+	String message = "42[\"" + id + "\",""\" "+ data + "\"]";
 	if (ioDebug) Serial.println("[emit] " + message);
-	int header[10];
+	int header[10]={0};
 	header[0] = 0x81;
 	int msglength = message.length();
 	if (ioDebug) Serial.println("[emit] " + String(msglength));

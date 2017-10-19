@@ -26,7 +26,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 */
 
 /*
- * Modifications by RoboJay
+ * Modifications by Goutam Enara
  */
 
 #ifndef SocketIoClient_H
@@ -52,8 +52,12 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <ESP8266WiFi.h>			//For ESP8266
 #endif
 
-#if !defined(W5100) && !defined(ENC28J60) && !defined(ESP8266)	//If no interface is defined
-#error "Please specify an interface such as W5100, ENC28J60, or ESP8266"
+#ifdef ESP32
+#include <WiFi.h>
+#endif
+
+#if !defined(W5100) && !defined(ENC28J60) && !defined(ESP8266) && !defined(ESP32)	//If no interface is defined
+#error "Please specify an interface such as W5100, ENC28J60,ESP8266 or ESP32"
 #error "above your includes like so : #define ESP8266 "
 #endif
 
@@ -66,7 +70,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 typedef void (*functionPointer)(String data);
 
 // Maxmimum number of 'on' handlers
-#define MAX_ON_HANDLERS 8
+#define MAX_ON_HANDLERS 1
 
 #define MAX_HOSTNAME_LEN 128
 
